@@ -5,7 +5,7 @@ import { paymentMiddleware, STXtoMicroSTX } from 'x402-stacks';
 
 dotenv.config();
 
-const app = express();
+export const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
@@ -16,6 +16,8 @@ app.use(express.json());
 const PAYMENT_ADDRESS = process.env.PAYMENT_ADDRESS || 'SP3QVGQG4SFHP0C983N1Y49V27CA70D2Y46E5Q4ZT'; // Bastiat's address
 const NETWORK = (process.env.NETWORK as 'mainnet' | 'testnet') || 'testnet';
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://x402-relay.aibtc.com';
+
+const MAX_TEXT_LENGTH = 10000;
 
 // Free endpoint - no payment required
 app.get('/api/health', (req, res) => {
@@ -46,6 +48,10 @@ app.post(
 
     if (!text) {
       return res.status(400).json({ error: 'Text is required' });
+    }
+
+    if (text.length > MAX_TEXT_LENGTH) {
+      return res.status(400).json({ error: 'Text must be under 10,000 characters' });
     }
 
     // Simple sentiment analysis (in production, use real AI model)
@@ -95,10 +101,15 @@ app.post(
     facilitatorUrl: FACILITATOR_URL,
   }),
   async (req, res) => {
-    const { text, maxSentences = 3 } = req.body;
+    const { text } = req.body;
+    const maxSentences = Math.max(1, Math.min(Number(req.body.maxSentences) || 3, 20));
 
     if (!text) {
       return res.status(400).json({ error: 'Text is required' });
+    }
+
+    if (text.length > MAX_TEXT_LENGTH) {
+      return res.status(400).json({ error: 'Text must be under 10,000 characters' });
     }
 
     // Simple summarization: extract first N sentences
@@ -136,6 +147,10 @@ app.post(
       return res.status(400).json({ error: 'Text is required' });
     }
 
+    if (text.length > MAX_TEXT_LENGTH) {
+      return res.status(400).json({ error: 'Text must be under 10,000 characters' });
+    }
+
     // Simple key point extraction: find sentences with important keywords
     const importantKeywords = ['important', 'key', 'critical', 'essential', 'significant', 'must', 'should', 'will'];
     const sentences = text.match(/[^\.!\?]+[\.!\?]+/g) || [text];
@@ -160,14 +175,16 @@ app.post(
   }
 );
 
-app.listen(PORT, () => {
-  console.log(`🚀 x402 AI API running on port ${PORT}`);
-  console.log(`📡 Network: ${NETWORK}`);
-  console.log(`💰 Payment address: ${PAYMENT_ADDRESS}`);
-  console.log(`🔗 Facilitator: ${FACILITATOR_URL}`);
-  console.log(`\nEndpoints:`);
-  console.log(`  GET  /api/health      - Free health check`);
-  console.log(`  POST /api/sentiment   - Paid (0.001 STX)`);
-  console.log(`  POST /api/summarize   - Paid (0.002 STX)`);
-  console.log(`  POST /api/extract     - Paid (0.001 STX)`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`x402 AI API running on port ${PORT}`);
+    console.log(`Network: ${NETWORK}`);
+    console.log(`Payment address: ${PAYMENT_ADDRESS}`);
+    console.log(`Facilitator: ${FACILITATOR_URL}`);
+    console.log(`\nEndpoints:`);
+    console.log(`  GET  /api/health      - Free health check`);
+    console.log(`  POST /api/sentiment   - Paid (0.001 STX)`);
+    console.log(`  POST /api/summarize   - Paid (0.002 STX)`);
+    console.log(`  POST /api/extract     - Paid (0.001 STX)`);
+  });
+}
